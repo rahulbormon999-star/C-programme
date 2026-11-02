@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>C & Web Multi-Language IDE</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Prism.js Syntax Highlighting Themes -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrownight.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-c.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    
+    /* Code Editor Overlay Effect */
+    #editor-container pre, #code-editor {
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      tab-size: 4;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 flex flex-col h-screen overflow-hidden font-sans">
+
+  <!-- Header -->
+  <header class="bg-slate-800 border-b border-slate-700 h-14 flex items-center justify-between px-3 z-20 shrink-0">
+    <div class="flex items-center gap-2">
+      <button id="menu-btn" class="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition">
+        <i class="fa-solid fa-bars text-lg"></i>
+      </button>
+      <div class="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-md border border-slate-700">
+        <i class="fa-solid fa-file-code text-blue-400 text-sm"></i>
+        <span id="current-filename" class="text-sm font-semibold truncate max-w-[120px] sm:max-w-[160px]">main.c</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 relative">
+      <button id="rename-btn" class="p-2 text-slate-300 hover:text-amber-400 hover:bg-slate-700 rounded-lg transition" title="Rename File">
+        <i class="fa-solid fa-pen-to-square"></i>
+      </button>
+      
+      <!-- Plus Button -->
+      <button id="add-menu-btn" class="p-2 text-slate-300 hover:text-emerald-400 hover:bg-slate-700 rounded-lg transition" title="Add Menu">
+        <i class="fa-solid fa-plus text-lg"></i>
+      </button>
+
+      <!-- Plus Options Dropdown -->
+      <div id="add-dropdown" class="absolute right-12 top-12 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl py-1 hidden z-30">
+        <button id="opt-single-file" class="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2">
+          <i class="fa-regular fa-file text-blue-400"></i> New File (Single)
+        </button>
+        <button id="opt-web-project" class="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2">
+          <i class="fa-solid fa-folder-plus text-emerald-400"></i> New Web Project
+        </button>
+      </div>
+
+      <button id="run-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm shadow-lg shadow-blue-900/40 transition">
+        <i class="fa-solid fa-play text-xs"></i> Run
+      </button>
+    </div>
+  </header>
+
+  <!-- Sidebar Overlay & Menu -->
+  <div id="drawer-overlay" class="fixed inset-0 bg-slate-950/60 z-30 hidden backdrop-blur-sm transition-opacity"></div>
+  <aside id="sidebar" class="fixed top-0 left-0 h-full w-64 bg-slate-800 z-40 transform -translate-x-full transition-transform duration-300 flex flex-col border-r border-slate-700">
+    <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+      <h2 class="text-base font-bold text-white flex items-center gap-2">
+        <i class="fa-solid fa-folder-open text-blue-400"></i> File Manager
+      </h2>
+      <button id="close-drawer" class="text-slate-400 hover:text-white p-1">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div id="file-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+  </aside>
+
+  <!-- Main Work Area -->
+  <main class="flex-1 flex flex-col relative overflow-hidden">
+    
+    <!-- Code Editor with Prism.js Highlighting -->
+    <div id="editor-container" class="flex-1 flex overflow-hidden bg-[#1d1f21] relative">
+      <div id="line-numbers" class="w-10 py-3 pr-2 text-right bg-slate-900 text-slate-600 text-sm font-mono select-none border-r border-slate-800 z-10">1</div>
+      
+      <div class="flex-1 relative overflow-auto">
+        <pre id="highlighting-container" class="absolute inset-0 p-3 m-0 pointer-events-none bg-transparent overflow-hidden border-none z-0"><code id="highlighting-content" class="language-c"></code></pre>
+        <textarea id="code-editor" class="absolute inset-0 w-full h-full p-3 bg-transparent text-transparent caret-white resize-none outline-none border-none whitespace-pre z-10" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <!-- Output Container -->
+    <div id="output-container" class="absolute inset-0 bg-slate-950 z-30 flex flex-col hidden">
+      <div class="bg-slate-800 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
+        <span id="output-title" class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+          <i class="fa-solid fa-terminal text-emerald-400"></i> Execution Output
+        </span>
+        <button id="back-to-editor-btn" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-1 rounded text-white flex items-center gap-1 transition">
+          <i class="fa-solid fa-code"></i> Edit Code
+        </button>
+      </div>
+      <pre id="output-terminal" class="flex-1 p-4 font-mono text-sm text-slate-200 overflow-auto whitespace-pre-wrap leading-relaxed"></pre>
+      <iframe id="output-preview" class="flex-1 w-full bg-white hidden border-none"></iframe>
+    </div>
+
+  </main>
+
+  <script>
+    // Initial Files State
+    const defaultFiles = {
+      'main.c': '#include <stdio.h>\n\nint main() {\n    int num = 10;\n    printf("Number is: %d\\n", num);\n    return 0;\n}'
+    };
+
+    let files = JSON.parse(localStorage.getItem('ide_pwa_files')) || defaultFiles;
+    let currentFile = localStorage.getItem('ide_pwa_current_file') || 'main.c';
+
+    // DOM Elements
+    const editor = document.getElementById('code-editor');
+    const highlightingContent = document.getElementById('highlighting-content');
+    const lineNumbers = document.getElementById('line-numbers');
+    const currentFilenameEl = document.getElementById('current-filename');
+    const fileListEl = document.getElementById('file-list');
+    const sidebar = document.getElementById('sidebar');
+    const drawerOverlay = document.getElementById('drawer-overlay');
+    const addDropdown = document.getElementById('add-dropdown');
+    const outputContainer = document.getElementById('output-container');
+    const outputTerminal = document.getElementById('output-terminal');
+    const outputPreview = document.getElementById('output-preview');
+    const outputTitle = document.getElementById('output-title');
+
+    function init() {
+      if (!files[currentFile]) {
+        currentFile = Object.keys(files)[0] || 'main.c';
+      }
+      editor.value = files[currentFile];
+      currentFilenameEl.textContent = currentFile;
+      updateEditorView();
+      renderFileList();
+    }
+
+    function saveToStorage() {
+      localStorage.setItem('ide_pwa_files', JSON.stringify(files));
+      localStorage.setItem('ide_pwa_current_file', currentFile);
+    }
+
+    // Dynamic Syntax Highlighting using Prism
+    function updateEditorView() {
+      const code = editor.value;
+      let langClass = 'language-c';
+
+      if (currentFile.endsWith('.html')) langClass = 'language-markup';
+      else if (currentFile.endsWith('.css')) langClass = 'language-css';
+      else if (currentFile.endsWith('.js')) langClass = 'language-javascript';
+
+      highlightingContent.className = langClass;
+      highlightingContent.textContent = code;
+      Prism.highlightElement(highlightingContent);
+
+      // Line numbers
+      const lines = code.split('\n').length;
+      lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
+    }
+
+    editor.addEventListener('input', () => {
+      files[currentFile] = editor.value;
+      saveToStorage();
+      updateEditorView();
+    });
+
+    editor.addEventListener('scroll', () => {
+      lineNumbers.scrollTop = editor.scrollTop;
+      document.getElementById('highlighting-container').scrollTop = editor.scrollTop;
+      document.getElementById('highlighting-container').scrollLeft = editor.scrollLeft;
+    });
+
+    // Plus Dropdown Menu
+    document.getElementById('add-menu-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      addDropdown.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', () => addDropdown.classList.add('hidden'));
+
+    // Create Single File
+    document.getElementById('opt-single-file').addEventListener('click', () => {
+      let name = prompt('ফাইলের নাম লিখুন (যেমন: test.c, index.html, style.css):');
+      if (name) {
+        name = name.trim();
+        if (files[name]) { alert('এই ফাইলটি ইতিমধ্যেই বিদ্যমান!'); return; }
+        
+        let initialContent = '// Write your code';
+        if(name.endsWith('.c')) initialContent = '#include <stdio.h>\n\nint main() {\n    return 0;\n}';
+        else if(name.endsWith('.html')) initialContent = '<!DOCTYPE html>\n<html>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>';
+        
+        files[name] = initialContent;
+        switchFile(name);
+      }
+    });
+
+    // Create Whole Web Project
+    document.getElementById('opt-web-project').addEventListener('click', () => {
+      if(confirm('একটি নতুন Web Project (HTML, CSS, JS সহ) তৈরি করতে চান?')) {
+        files['index.html'] = '<!DOCTYPE html>\n<html>\n<head>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n  <h1>Web Project Started!</h1>\n  <button onclick="showMessage()">Click Me</button>\n  <script src="script.js"><\/script>\n</body>\n</html>';
+        files['style.css'] = 'body {\n  background-color: #0f172a;\n  color: white;\n  font-family: sans-serif;\n  text-align: center;\n  padding-top: 40px;\n}\nbutton {\n  padding: 10px 20px;\n  background: #2563eb;\n  color: white;\n  border: none;\n  border-radius: 5px;\n}';
+        files['script.js'] = 'function showMessage() {\n  alert("Congratulations! Project Working Successfully.");\n}';
+        switchFile('index.html');
+      }
+    });
+
+    // Sidebar Drawer Controls
+    function openSidebar() { sidebar.classList.remove('-translate-x-full'); drawerOverlay.classList.remove('hidden'); }
+    function closeSidebar() { sidebar.classList.add('-translate-x-full'); drawerOverlay.classList.add('hidden'); }
+    document.getElementById('menu-btn').addEventListener('click', openSidebar);
+    document.getElementById('close-drawer').addEventListener('click', closeSidebar);
+    drawerOverlay.addEventListener('click', closeSidebar);
+
+    function renderFileList() {
+      fileListEl.innerHTML = '';
+      Object.keys(files).forEach(filename => {
+        const isActive = filename === currentFile;
+        const fileItem = document.createElement('div');
+        fileItem.className = `flex items-center justify-between p-2.5 rounded-lg text-sm cursor-pointer transition ${
+          isActive ? 'bg-blue-600/20 text-blue-400 font-semibold border border-blue-500/30' : 'text-slate-300 hover:bg-slate-700/50'
+        }`;
+        fileItem.innerHTML = `
+          <div class="flex items-center gap-2 truncate flex-1" onclick="switchFile('${filename}')">
+            <i class="fa-regular fa-file-code"></i>
+            <span class="truncate">${filename}</span>
+          </div>
+          <button onclick="deleteFile(event, '${filename}')" class="text-slate-500 hover:text-red-400 p-1 rounded transition" title="Delete File">
+            <i class="fa-solid fa-xmark text-base"></i>
+          </button>
+        `;
+        fileListEl.appendChild(fileItem);
+      });
+    }
+
+    window.switchFile = function(filename) {
+      currentFile = filename;
+      editor.value = files[currentFile];
+      currentFilenameEl.textContent = currentFile;
+      saveToStorage();
+      updateEditorView();
+      renderFileList();
+      closeSidebar();
+      outputContainer.classList.add('hidden');
+    };
+
+    // Rename File
+    document.getElementById('rename-btn').addEventListener('click', () => {
+      let newName = prompt('ফাইলের নতুন নাম দিন:', currentFile);
+      if (newName && newName !== currentFile) {
+        newName = newName.trim();
+        if (files[newName]) { alert('এই নামের ফাইল আগেই আছে!'); return; }
+        files[newName] = files[currentFile];
+        delete files[currentFile];
+        switchFile(newName);
+      }
+    });
+
+    // Delete File
+    window.deleteFile = function(event, filename) {
+      event.stopPropagation();
+      if (Object.keys(files).length <= 1) { alert('কমপক্ষে একটি ফাইল থাকতে হবে!'); return; }
+      if (confirm(`আপনি কি "${filename}" মুছে ফেলতে চান?`)) {
+        delete files[filename];
+        if (currentFile === filename) currentFile = Object.keys(files)[0];
+        saveToStorage();
+        init();
+      }
+    };
+
+    // Code Execution
+    document.getElementById('run-btn').addEventListener('click', () => {
+      outputContainer.classList.remove('hidden');
+
+      if (currentFile.endsWith('.html') || currentFile.endsWith('.css') || currentFile.endsWith('.js')) {
+        outputTerminal.classList.add('hidden');
+        outputPreview.classList.remove('hidden');
+        outputTitle.innerHTML = `<i class="fa-solid fa-globe text-blue-400"></i> Web Project Preview`;
+
+        let html = files['index.html'] || editor.value;
+        let css = files['style.css'] || '';
+        let js = files['script.js'] || '';
+
+        let doc = html
+          .replace('</head>', `<style>${css}</style></head>`)
+          .replace('</body>', `<script>${js}<\/script></body>`);
+
+        outputPreview.srcdoc = doc;
+        return;
+      }
+
+      // C Engine Execution
+      outputPreview.classList.add('hidden');
+      outputTerminal.classList.remove('hidden');
+      outputTitle.innerHTML = `<i class="fa-solid fa-terminal text-emerald-400"></i> C Output`;
+
+      const code = editor.value;
+      let logs = [];
+      const declaredVars = {};
+      
+      const varRegex = /\b(int|float|double|char)\s+([a-zA-Z_]\w*)\s*=\s*([^;]+);/g;
+      let m;
+      while ((m = varRegex.exec(code)) !== null) {
+        declaredVars[m[2]] = m[3].trim();
+      }
+
+      const printfRegex = /printf\s*\(\s*"([^"]*)"\s*(?:,\s*(.*?))?\s*\)\s*;/g;
+      let pMatch;
+      while ((pMatch = printfRegex.exec(code)) !== null) {
+        let str = pMatch[1].replace(/\\n/g, '\n');
+        let argsStr = pMatch[2];
+
+        if (argsStr) {
+          let args = argsStr.split(',').map(a => a.trim());
+          for (let arg of args) {
+            if (isNaN(arg) && declaredVars[arg] === undefined) {
+              outputTerminal.textContent = `Error: '${arg}' undeclared variable!`;
+              return;
+            }
+            if (declaredVars[arg] !== undefined) {
+              str = str.replace(/%d|%f|%s|%c/, declaredVars[arg]);
+            }
+          }
+        }
+        logs.push(str);
+      }
+
+      outputTerminal.textContent = logs.length === 0 ? "Program executed with no output." : logs.join('');
+    });
+
+    document.getElementById('back-to-editor-btn').addEventListener('click', () => {
+      outputContainer.classList.add('hidden');
+    });
+
+    init();
+  </script>
+</body>
+  </html>
