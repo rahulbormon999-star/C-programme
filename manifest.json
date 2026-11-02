@@ -1,6 +1,6 @@
 {
-  "name": "C Programming IDE PWA",
-  "short_name": "C IDE",
+  "name": "Multi-Language IDE PWA",
+  "short_name": "Pro IDE",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f172a",
