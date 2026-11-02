@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>C & Web Multi-Language IDE</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  
+  <!-- Tailwind CSS & FontAwesome -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    
+    /* Code Overlay System for Syntax Highlighting */
+    .code-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .code-container textarea, .code-container pre {
+      margin: 0;
+      padding: 12px;
+      border: 0;
+      width: 100%;
+      height: 100%;
+      tab-size: 4;
+      white-space: pre;
+      word-wrap: normal;
+      overflow: auto;
+    }
+    .code-container textarea {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+      color: transparent;
+      background: transparent;
+      caret-color: #ffffff;
+      resize: none;
+      outline: none;
+    }
+    .code-container pre {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: #090d16;
+    }
+
+    /* Syntax Highlighting Colors */
+    .hl-keyword { color: #f472b6; font-weight: bold; } /* Pink */
+    .hl-type { color: #38bdf8; font-weight: bold; }    /* Light Blue */
+    .hl-string { color: #4ade80; }                      /* Green */
+    .hl-number { color: #fbbf24; }                      /* Amber */
+    .hl-comment { color: #64748b; font-style: italic; } /* Gray */
+    .hl-include { color: #fb923c; }                      /* Orange */
+    .hl-function { color: #c084fc; }                     /* Purple */
+    .hl-tag { color: #f87171; }                          /* Red */
+    .hl-attr { color: #38bdf8; }                         /* Sky Blue */
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 flex flex-col h-screen overflow-hidden font-sans">
+
+  <!-- Top Navigation Header -->
+  <header class="bg-slate-800 border-b border-slate-700 h-14 flex items-center justify-between px-3 z-20 shrink-0">
+    <div class="flex items-center gap-2">
+      <button id="menu-btn" class="p-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition">
+        <i class="fa-solid fa-bars text-lg"></i>
+      </button>
+      <div class="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-md border border-slate-700">
+        <i class="fa-solid fa-file-code text-blue-400 text-sm"></i>
+        <span id="current-filename" class="text-sm font-semibold truncate max-w-[120px] sm:max-w-[160px]">main.c</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 relative">
+      <button id="rename-btn" class="p-2 text-slate-300 hover:text-amber-400 hover:bg-slate-700 rounded-lg transition" title="Rename File">
+        <i class="fa-solid fa-pen-to-square"></i>
+      </button>
+      
+      <!-- Plus Menu Button -->
+      <button id="add-menu-btn" class="p-2 text-slate-300 hover:text-emerald-400 hover:bg-slate-700 rounded-lg transition" title="Add File/Project">
+        <i class="fa-solid fa-plus text-lg"></i>
+      </button>
+
+      <!-- Plus Dropdown Options -->
+      <div id="add-dropdown" class="absolute right-12 top-12 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl py-1 hidden z-30">
+        <button id="opt-single-file" class="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2">
+          <i class="fa-regular fa-file text-blue-400"></i> New Single File
+        </button>
+        <button id="opt-web-project" class="w-full text-left px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 flex items-center gap-2">
+          <i class="fa-solid fa-folder-plus text-emerald-400"></i> New Web Project
+        </button>
+      </div>
+
+      <button id="run-btn" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 text-sm shadow-lg shadow-blue-900/40 transition">
+        <i class="fa-solid fa-play text-xs"></i> Run
+      </button>
+    </div>
+  </header>
+
+  <!-- Sidebar File Manager -->
+  <div id="drawer-overlay" class="fixed inset-0 bg-slate-950/60 z-30 hidden backdrop-blur-sm transition-opacity"></div>
+  <aside id="sidebar" class="fixed top-0 left-0 h-full w-64 bg-slate-800 z-40 transform -translate-x-full transition-transform duration-300 flex flex-col border-r border-slate-700">
+    <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+      <h2 class="text-base font-bold text-white flex items-center gap-2">
+        <i class="fa-solid fa-folder-open text-blue-400"></i> File Manager
+      </h2>
+      <button id="close-drawer" class="text-slate-400 hover:text-white p-1">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div id="file-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+  </aside>
+
+  <!-- Main Work Area -->
+  <main class="flex-1 flex flex-col relative overflow-hidden">
+    
+    <div class="flex-1 flex overflow-hidden bg-[#090d16] relative">
+      <div id="line-numbers" class="w-10 py-3 pr-2 text-right bg-slate-900 text-slate-600 text-sm font-mono select-none border-r border-slate-800 z-10">1</div>
+      
+      <div class="flex-1 code-container">
+        <pre><code id="highlighting-content"></code></pre>
+        <textarea id="code-editor" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <!-- Output View Screen -->
+    <div id="output-container" class="absolute inset-0 bg-slate-950 z-30 flex flex-col hidden">
+      <div class="bg-slate-800 px-4 py-2 border-b border-slate-700 flex justify-between items-center">
+        <span id="output-title" class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+          <i class="fa-solid fa-terminal text-emerald-400"></i> Execution Output
+        </span>
+        <button id="back-to-editor-btn" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-1 rounded text-white flex items-center gap-1 transition">
+          <i class="fa-solid fa-code"></i> Edit Code
+        </button>
+      </div>
+      <pre id="output-terminal" class="flex-1 p-4 font-mono text-sm text-slate-200 overflow-auto whitespace-pre-wrap leading-relaxed"></pre>
+      <iframe id="output-preview" class="flex-1 w-full bg-white hidden border-none"></iframe>
+    </div>
+
+  </main>
+
+  <script>
+    // Initial Files State
+    const defaultFiles = {
+      'main.c': '#include <stdio.h>\n\nint main() {\n    int a = 12;\n    char v = \'R\';\n    printf("Gggg Rahul\\n%c", v);\n    // printf("Comeant");\n    return 0;\n}'
+    };
+
+    let files = JSON.parse(localStorage.getItem('ide_pwa_files_v3')) || defaultFiles;
+    let currentFile = localStorage.getItem('ide_pwa_current_file_v3') || 'main.c';
+
+    // DOM Elements
+    const editor = document.getElementById('code-editor');
+    const highlightingContent = document.getElementById('highlighting-content');
+    const lineNumbers = document.getElementById('line-numbers');
+    const currentFilenameEl = document.getElementById('current-filename');
+    const fileListEl = document.getElementById('file-list');
+    const sidebar = document.getElementById('sidebar');
+    const drawerOverlay = document.getElementById('drawer-overlay');
+    const addDropdown = document.getElementById('add-dropdown');
+    const outputContainer = document.getElementById('output-container');
+    const outputTerminal = document.getElementById('output-terminal');
+    const outputPreview = document.getElementById('output-preview');
+    const outputTitle = document.getElementById('output-title');
+    const preContainer = document.querySelector('.code-container pre');
+
+    function init() {
+      if (!files[currentFile]) {
+        currentFile = Object.keys(files)[0] || 'main.c';
+      }
+      editor.value = files[currentFile];
+      currentFilenameEl.textContent = currentFile;
+      updateEditorView();
+      renderFileList();
+    }
+
+    function saveToStorage() {
+      localStorage.setItem('ide_pwa_files_v3', JSON.stringify(files));
+      localStorage.setItem('ide_pwa_current_file_v3', currentFile);
+    }
+
+    // Custom Built-in Syntax Highlighter Parser
+    function highlightCode(code, filename) {
+      // Escape HTML Special Characters
+      let html = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      if (filename.endsWith('.c')) {
+        html = html
+          .replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)/g, '<span class="hl-comment">$1</span>')
+          .replace(/(#include\s+&lt;[^&]+&gt;|#define\s+\w+)/g, '<span class="hl-include">$1</span>')
+          .replace(/\b(int|char|float|double|void|long|short|struct)\b/g, '<span class="hl-type">$1</span>')
+          .replace(/\b(if|else|for|while|do|return|switch|case|break|continue)\b/g, '<span class="hl-keyword">$1</span>')
+          .replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*')/g, '<span class="hl-string">$1</span>')
+          .replace(/\b(\d+)\b/g, '<span class="hl-number">$1</span>')
+          .replace(/\b(printf|scanf|main)\b/g, '<span class="hl-function">$1</span>');
+      } else if (filename.endsWith('.html')) {
+        html = html
+          .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="hl-comment">$1</span>')
+          .replace(/(&lt;\/?[a-zA-Z0-9]+)/g, '<span class="hl-tag">$1</span>')
+          .replace(/\b([a-zA-Z-]+)=(?=")/g, '<span class="hl-attr">$1</span>=')
+          .replace(/("([^"\\]|\\.)*")/g, '<span class="hl-string">$1</span>');
+      } else if (filename.endsWith('.js')) {
+        html = html
+          .replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)/g, '<span class="hl-comment">$1</span>')
+          .replace(/\b(var|let|const|function|return|if|else|for|while)\b/g, '<span class="hl-keyword">$1</span>')
+          .replace(/("([^"\\]|\\.)*"|'([^'\\]|\\.)*'|`([^`\\]|\\.)*`)/g, '<span class="hl-string">$1</span>')
+          .replace(/\b(\d+)\b/g, '<span class="hl-number">$1</span>');
+      }
+      return html;
+    }
+
+    function updateEditorView() {
+      const code = editor.value;
+      highlightingContent.innerHTML = highlightCode(code, currentFile) + '\n';
+      
+      const lines = code.split('\n').length;
+      lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
+    }
+
+    editor.addEventListener('input', () => {
+      files[currentFile] = editor.value;
+      saveToStorage();
+      updateEditorView();
+    });
+
+    // Synchronize Textarea & Pre Scroll
+    editor.addEventListener('scroll', () => {
+      preContainer.scrollTop = editor.scrollTop;
+      preContainer.scrollLeft = editor.scrollLeft;
+      lineNumbers.scrollTop = editor.scrollTop;
+    });
+
+    // Plus Dropdown Menu Controls
+    document.getElementById('add-menu-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      addDropdown.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', () => addDropdown.classList.add('hidden'));
+
+    // Option 1: Create Single File
+    document.getElementById('opt-single-file').addEventListener('click', () => {
+      let name = prompt('ফাইলের নাম দিন (যেমন: test.c, index.html, style.css, script.js):');
+      if (name) {
+        name = name.trim();
+        if (files[name]) { alert('এই ফাইলটি ইতিমধ্যে আছে!'); return; }
+        
+        let initialContent = '// Single File';
+        if(name.endsWith('.c')) initialContent = '#include <stdio.h>\n\nint main() {\n    printf("Hello C!\\n");\n    return 0;\n}';
+        else if(name.endsWith('.html')) initialContent = '<!DOCTYPE html>\n<html>\n<body>\n  <h1>Hello World</h1>\n</body>\n</html>';
+        
+        files[name] = initialContent;
+        switchFile(name);
+      }
+    });
+
+    // Option 2: Create Web Project Structure
+    document.getElementById('opt-web-project').addEventListener('click', () => {
+      if(confirm('নতুন Web Project (index.html, style.css, script.js) তৈরি করবেন?')) {
+        files['index.html'] = '<!DOCTYPE html>\n<html>\n<head>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n  <h1>Web Project Active!</h1>\n  <button onclick="testAction()">Click Me</button>\n  <script src="script.js"><\/script>\n</body>\n</html>';
+        files['style.css'] = 'body {\n  background-color: #0f172a;\n  color: #38bdf8;\n  font-family: sans-serif;\n  text-align: center;\n  padding-top: 40px;\n}\nbutton {\n  padding: 10px 20px;\n  background: #2563eb;\n  color: white;\n  border: none;\n  border-radius: 6px;\n  cursor: pointer;\n}';
+        files['script.js'] = 'function testAction() {\n  alert("Web project script is working perfectly!");\n}';
+        switchFile('index.html');
+      }
+    });
+
+    // Sidebar Drawer Controls
+    function openSidebar() { sidebar.classList.remove('-translate-x-full'); drawerOverlay.classList.remove('hidden'); }
+    function closeSidebar() { sidebar.classList.add('-translate-x-full'); drawerOverlay.classList.add('hidden'); }
+    document.getElementById('menu-btn').addEventListener('click', openSidebar);
+    document.getElementById('close-drawer').addEventListener('click', closeSidebar);
+    drawerOverlay.addEventListener('click', closeSidebar);
+
+    function renderFileList() {
+      fileListEl.innerHTML = '';
+      Object.keys(files).forEach(filename => {
+        const isActive = filename === currentFile;
+        const fileItem = document.createElement('div');
+        fileItem.className = `flex items-center justify-between p-2.5 rounded-lg text-sm cursor-pointer transition ${
+          isActive ? 'bg-blue-600/20 text-blue-400 font-semibold border border-blue-500/30' : 'text-slate-300 hover:bg-slate-700/50'
+        }`;
+        fileItem.innerHTML = `
+          <div class="flex items-center gap-2 truncate flex-1" onclick="switchFile('${filename}')">
+            <i class="fa-regular fa-file-code"></i>
+            <span class="truncate">${filename}</span>
+          </div>
+          <button onclick="deleteFile(event, '${filename}')" class="text-slate-500 hover:text-red-400 p-1 rounded transition" title="Delete File">
+            <i class="fa-solid fa-xmark text-base"></i>
+          </button>
+        `;
+        fileListEl.appendChild(fileItem);
+      });
+    }
+
+    window.switchFile = function(filename) {
+      currentFile = filename;
+      editor.value = files[currentFile];
+      currentFilenameEl.textContent = currentFile;
+      saveToStorage();
+      updateEditorView();
+      renderFileList();
+      closeSidebar();
+      outputContainer.classList.add('hidden');
+    };
+
+    // Rename File
+    document.getElementById('rename-btn').addEventListener('click', () => {
+      let newName = prompt('ফাইলের নতুন নাম দিন:', currentFile);
+      if (newName && newName !== currentFile) {
+        newName = newName.trim();
+        if (files[newName]) { alert('এই নামের ফাইল ইতিমধ্যে বিদ্যমান!'); return; }
+        files[newName] = files[currentFile];
+        delete files[currentFile];
+        switchFile(newName);
+      }
+    });
+
+    // Delete File with Confirmation
+    window.deleteFile = function(event, filename) {
+      event.stopPropagation();
+      if (Object.keys(files).length <= 1) { alert('সর্বনিম্ন একটি ফাইল থাকতে হবে!'); return; }
+      if (confirm(`আপনি কি "${filename}" মুছে ফেলতে চান?`)) {
+        delete files[filename];
+        if (currentFile === filename) currentFile = Object.keys(files)[0];
+        saveToStorage();
+        init();
+      }
+    };
+
+    // Code Execution Engine (Ignores Comments Properly)
+    document.getElementById('run-btn').addEventListener('click', () => {
+      outputContainer.classList.remove('hidden');
+
+      // Web Files Handling
+      if (currentFile.endsWith('.html') || currentFile.endsWith('.css') || currentFile.endsWith('.js')) {
+        outputTerminal.classList.add('hidden');
+        outputPreview.classList.remove('hidden');
+        outputTitle.innerHTML = `<i class="fa-solid fa-globe text-blue-400"></i> Project Preview`;
+
+        let html = files['index.html'] || editor.value;
+        let css = files['style.css'] || '';
+        let js = files['script.js'] || '';
+
+        let doc = html
+          .replace('</head>', `<style>${css}</style></head>`)
+          .replace('</body>', `<script>${js}<\/script></body>`);
+
+        outputPreview.srcdoc = doc;
+        return;
+      }
+
+      // C Files Simulation
+      outputPreview.classList.add('hidden');
+      outputTerminal.classList.remove('hidden');
+      outputTitle.innerHTML = `<i class="fa-solid fa-terminal text-emerald-400"></i> C Execution Output`;
+
+      let rawCode = editor.value;
+
+      // Clean Code: Remove Single line // and Multi-line /* */ Comments
+      let cleanCode = rawCode
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/[^\n]*/g, '');
+
+      let logs = [];
+      const declaredVars = {};
+      
+      // Parse variable declarations
+      const varRegex = /\b(int|float|double|char)\s+([a-zA-Z_]\w*)\s*=\s*([^;]+);/g;
+      let m;
+      while ((m = varRegex.exec(cleanCode)) !== null) {
+        let val = m[3].trim();
+        if ((val.startsWith("'") && val.endsWith("'")) || (val.startsWith('"') && val.endsWith('"'))) {
+          val = val.substring(1, val.length - 1);
+        }
+        declaredVars[m[2]] = val;
+      }
+
+      // Parse printf statements from clean code only
+      const printfRegex = /printf\s*\(\s*"([^"]*)"\s*(?:,\s*(.*?))?\s*\)\s*;/g;
+      let pMatch;
+      while ((pMatch = printfRegex.exec(cleanCode)) !== null) {
+        let formatStr = pMatch[1].replace(/\\n/g, '\n');
+        let argsStr = pMatch[2];
+
+        if (argsStr) {
+          let args = argsStr.split(',').map(a => a.trim());
+          for (let arg of args) {
+            if (isNaN(arg) && declaredVars[arg] === undefined) {
+              outputTerminal.textContent = `Compile Error: Variable '${arg}' is undeclared!`;
+              return;
+            }
+            if (declaredVars[arg] !== undefined) {
+              formatStr = formatStr.replace(/%d|%f|%s|%c/, declaredVars[arg]);
+            }
+          }
+        }
+        logs.push(formatStr);
+      }
+
+      outputTerminal.textContent = logs.length === 0 ? "Program executed with no output." : logs.join('');
+    });
+
+    document.getElementById('back-to-editor-btn').addEventListener('click', () => {
+      outputContainer.classList.add('hidden');
+    });
+
+    init();
+  </script>
+</body>
+  </html>
