@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pro-ide-v4;
+const CACHE_NAME = 'pro-ide-v5;
 const ASSETS = [
   './',
   './index.html',
